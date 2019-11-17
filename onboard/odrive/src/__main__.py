@@ -16,8 +16,8 @@ from odrive.enums import AXIS_STATE_CLOSED_LOOP_CONTROL, \
 
 
 def main():
-    global lcm_
-    lcm_ = lcm.LCM()
+#    global lcm_
+#    lcm_ = lcm.LCM()
 
     # insert lcm subscribe statements here
 
@@ -39,7 +39,7 @@ def main():
     msg = ODriver_Pub_Encoders()
     msg1 = ODriver_Pub_State()
 
-    threading._start_new_thread(lcmThreaderMan, ())
+#threading._start_new_thread(lcmThreaderMan, ())
 
     i = 0 
     while True:
@@ -59,6 +59,7 @@ def lcmThreaderMan():
     lcm_1.subscribe("/odrive_req_vel", odriver_req_vel_callback)
     print("lc threader set up")
     while True:
+        print("trying to lcm handle")
         lcm_1.handle()
         print("lcm handling")
         t.sleep(1)
@@ -75,9 +76,9 @@ odrive = None  # starting odrive
 def publish_state_msg(msg, state_number):
     global currentState
     currentState = states[state_number - 1]
-    msg1.state = state_number
-    msg1.serialid = sys.argv[1]
-    lcm_.publish("/odriver_pub_state", msg1.encode())  # is lcm_ global?
+    msg.state = state_number
+    msg.serialid = sys.argv[1]
+    lcm_.publish("/odriver_pub_state", msg.encode())  # is lcm_ global?
     return t.time()
 
 
@@ -118,7 +119,14 @@ def nextState():
     if (currentState == "BOOT"):
         print("current state is boot")
         # attempt to connect to odrive
-        odrive = odv.find_any(serial_number=sys.argv[1])
+        
+        print("looking for odrive")
+        id = str(sys.argv[1])
+        print(id)
+        
+        odrive = odv.find_any(serial_number=id)
+        t.sleep(3)
+        print("found odrive")
         modrive = Modrive(odrive)  # arguments = odr
         encoderTime = t.time()
         # Block until odrive is connected
@@ -281,6 +289,7 @@ if __name__ == "__main__":
     main()
 
 class Modrive:
+    CURRENT_LIM = 30
 
     def __init__(self, odr):
         self.odrive = odr
@@ -295,6 +304,8 @@ class Modrive:
         return getattr(self.odrive, attr)
 
     def set_current_lim(self, axis, lim):
+        if (lim > CURRENT_LIM):
+            lim = CURRENT_LIM
         if (axis == "LEFT"):
             self.left_axis.motor.config.current_lim = lim
         elif (axis == "RIGHT"):
