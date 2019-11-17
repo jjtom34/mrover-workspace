@@ -30,6 +30,9 @@ def main():
     global modrive
     global legalAxis
     legalAxis = sys.argv[2]
+    
+    if (legalAxis != "LEFT" and legalAxis != "RIGHT" and legalAxis != "BOTH"):
+        print("invalid odrive axis given")
 
     global msg
     global msg1
@@ -42,7 +45,7 @@ def main():
     while True:
         #lcm_.handle()
         nextState()
-        print("I MADE IT HERE")
+        print("successfully booted up")
         print(i)
         i += 1
         t.sleep(1)
@@ -54,10 +57,10 @@ def lcmThreaderMan():
     lcm_1 = lcm.LCM()
     lcm_1.subscribe("/odriver_req_state", odriver_req_state_callback)
     lcm_1.subscribe("/odrive_req_vel", odriver_req_vel_callback)
-    print("I AM HERE")
+    print("lc threader set up")
     while True:
         lcm_1.handle()
-        print("I AM NOW HERE")
+        print("lcm handling")
         t.sleep(1)
 
 
@@ -103,7 +106,7 @@ def publish_encoder_msg(msg):
 
 
 def nextState():
-    print("OH LOOK AT ME I'M HERE")
+    print("Moving to next state")
     # every time the state changes,
     # publish an odrive_state lcm message, with the new state
     global currentState
@@ -113,6 +116,7 @@ def nextState():
     global modrive
 
     if (currentState == "BOOT"):
+        print("current state is boot")
         # attempt to connect to odrive
         odrive = odv.find_any(serial_number=sys.argv[1])
         modrive = Modrive(odrive)  # arguments = odr
@@ -123,9 +127,11 @@ def nextState():
         # set controller's control mode to velocity control
         modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
         # set currentState to DISARMED
-        publish_state_msg(msg1, 2)
+        print("setting state to disarmed")
+        publish_state_msg(msg1, 2) #2 = disarmed
 
     elif (currentState == "DISARMED"):
+        print("current state is disarmed")
         # if 100 ms have passed since last time data was published
         #   publish an odrive_data lcm message with measured
         #   current and estimated velocity
@@ -138,52 +144,65 @@ def nextState():
         errors = modrive.check_errors(legalAxis)
         if errors:
             # sets state to error
+            print("found errors")
             publish_state_msg(msg1, 4)
         elif requestedState == "ARMED":
+            print("setting state to armed")
             modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
             # sets state to armed
             publish_state_msg(msg1, 3)
         elif requestedState == "BOOT":
+            print("setting state to boot")
             odrive.reboot()
             # sets state to boot
             publish_state_msg(msg1, 1)
         elif requestedState == "CALIBRATING":
+            print("setting state to calibrating")
             modrive.requested_state(legalAxis,
                                     AXIS_STATE_FULL_CALIBRATION_SEQUENCE)
             # sets state to calibrating
             publish_state_msg(msg1, 5)
 
     elif (currentState == "ARMED"):
+        print("current state is armed")
         if (encoderTime - t.time() > 0.1):
             encoderTime = publish_encoder_msg(msg)
         errors = odv.dump_errors(odrive)
         if errors:
+            print("found errors")
             # sets state to error
             publish_state_msg(msg1, 4)
         elif requestedState == "DISARMED":
+            print("setting state to disarmed")
             modrive.set_control_mode(legalAxis, AXIS_STATE_IDLE)
         # sets state to disarmed
             publish_state_msg(msg1, 2)
         elif requestedState == "BOOT":
+            print("setting state to boot")
             odrive.reboot()
         # sets state to boot
             publish_state_msg(msg1, 1)
         elif requestedState == "CALIBRATING":
+            print("setting state to calibrating")
             modrive.requested_state(legalAxis,
                                     AXIS_STATE_FULL_CALIBRATION_SEQUENCE)
         # sets state to calibrating
             publish_state_msg(msg1, 5)
         elif (currentState == "ERROR"):
+            print ("current state is erorr")
             if requestedState == "BOOT":
+                print("setting state to boot")
                 odrive.reboot()
                 # sets current state to boot
                 publish_state_msg(msg1, 1)
             elif requestedState == "CALIBRATING":
+                print("setting state to calibrating")
                 modrive.requested_state(legalAxis,
                                         AXIS_STATE_FULL_CALIBRATION_SEQUENCE)
                 # sets current state to calibrating
                 publish_state_msg(msg1, 5)
     elif (currentState == "CALIBRATING"):
+        print("current state is calibrating")
         # if odrive is done calibrating
         #   set current limit on odrive to 100
         #   set controller's control mode to velocity control
