@@ -1,5 +1,7 @@
 class Modrive:
 
+CURRENT_LIMIT = 30;
+    
     def __init__(self, odr):
         self.odrive = odr
         self.left_axis = self.odrive.axis0
@@ -13,6 +15,9 @@ class Modrive:
         return getattr(self.odrive, attr)
 
     def set_current_lim(self, axis, lim):
+        if (lim > CURRENT_LIMIT) {
+            lim = CURRENT_LIMIT;
+        }
         if (axis == "LEFT"):
             self.left_axis.motor.config.current_lim = lim
         elif (axis == "RIGHT"):
