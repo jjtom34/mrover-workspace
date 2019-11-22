@@ -14,10 +14,9 @@ from odrive.enums import AXIS_STATE_CLOSED_LOOP_CONTROL, \
     AXIS_STATE_IDLE
 #from . import modrive as Modrive
 
-
 def main():
-#    global lcm_
-#    lcm_ = lcm.LCM()
+    global lcm_
+    lcm_ = lcm.LCM()
 
     # insert lcm subscribe statements here
 
@@ -39,15 +38,20 @@ def main():
     msg = ODriver_Pub_Encoders()
     msg1 = ODriver_Pub_State()
 
-#threading._start_new_thread(lcmThreaderMan, ())
+    global lock
+    lock = threading.Lock()
+    
+    #For some reason having these here is causing the current and requested state to be over-ridden everytime the loop runs
+    currentState = "NONE"  # starting state
+    global requestedState
+    requestedState = "BOOT"  # starting requested state
 
-    i = 0 
+    threading._start_new_thread(lcmThreaderMan, ())
+
     while True:
         #lcm_.handle()
-        nextState()
-        print("successfully booted up")
-        print(i)
-        i += 1
+        print(currentState)
+        currentState = nextState(currentState)
         t.sleep(1)
 
     exit()
@@ -58,28 +62,27 @@ def lcmThreaderMan():
     lcm_1.subscribe("/odriver_req_state", odriver_req_state_callback)
     lcm_1.subscribe("/odrive_req_vel", odriver_req_vel_callback)
     print("lc threader set up")
-    while True:
+    while True: 
         print("trying to lcm handle")
         lcm_1.handle()
         print("lcm handling")
         t.sleep(1)
+        
 
 
 states = ["BOOT", "DISARMED", "ARMED", "ERROR", "CALIBRATING", "EXIT"]
 # Program states possible - BOOT, DISARMED, ARMED, ERROR, CALIBRATING, EXIT
 # 							1		 2	      3	    4		 5         6
-currentState = "BOOT"  # starting state
-requestedState = "DISARMED"  # starting requested state
+
 odrive = None  # starting odrive
 
 
 def publish_state_msg(msg, state_number):
-    global currentState
-    currentState = states[state_number - 1]
     msg.state = state_number
     msg.serialid = sys.argv[1]
     lcm_.publish("/odriver_pub_state", msg.encode())  # is lcm_ global?
-    return t.time()
+    print("changed state to " + states[state_number - 1])
+    return states[state_number - 1]
 
 
 def publish_encoder_helper(msg, axis):
@@ -106,24 +109,29 @@ def publish_encoder_msg(msg):
         return t.time()
 
 
-def nextState():
+def nextState(currentState):
+    lock.acquire()
     print("Moving to next state")
+    
     # every time the state changes,
     # publish an odrive_state lcm message, with the new state
-    global currentState
+    #global currentState
     global requestedState
     global odrive
     global encoderTime
     global modrive
+    print("Requested State: " + requestedState)
+    print("Current State: " + currentState)
+
+    if (currentState != requestedState):
+        currentState = change_state(currentState)
+    
 
     if (currentState == "BOOT"):
-        print("current state is boot")
         # attempt to connect to odrive
-        
         print("looking for odrive")
         id = str(sys.argv[1])
-        print(id)
-        
+
         odrive = odv.find_any(serial_number=id)
         t.sleep(3)
         print("found odrive")
@@ -135,8 +143,8 @@ def nextState():
         # set controller's control mode to velocity control
         modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
         # set currentState to DISARMED
-        print("setting state to disarmed")
-        publish_state_msg(msg1, 2) #2 = disarmed
+        print(currentState)
+        requestedState = publish_state_msg(msg1, 2)
 
     elif (currentState == "DISARMED"):
         print("current state is disarmed")
@@ -153,23 +161,7 @@ def nextState():
         if errors:
             # sets state to error
             print("found errors")
-            publish_state_msg(msg1, 4)
-        elif requestedState == "ARMED":
-            print("setting state to armed")
-            modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
-            # sets state to armed
-            publish_state_msg(msg1, 3)
-        elif requestedState == "BOOT":
-            print("setting state to boot")
-            odrive.reboot()
-            # sets state to boot
-            publish_state_msg(msg1, 1)
-        elif requestedState == "CALIBRATING":
-            print("setting state to calibrating")
-            modrive.requested_state(legalAxis,
-                                    AXIS_STATE_FULL_CALIBRATION_SEQUENCE)
-            # sets state to calibrating
-            publish_state_msg(msg1, 5)
+            requestedState = publish_state_msg(msg1, 4)
 
     elif (currentState == "ARMED"):
         print("current state is armed")
@@ -179,36 +171,12 @@ def nextState():
         if errors:
             print("found errors")
             # sets state to error
-            publish_state_msg(msg1, 4)
-        elif requestedState == "DISARMED":
-            print("setting state to disarmed")
-            modrive.set_control_mode(legalAxis, AXIS_STATE_IDLE)
-        # sets state to disarmed
-            publish_state_msg(msg1, 2)
-        elif requestedState == "BOOT":
-            print("setting state to boot")
-            odrive.reboot()
-        # sets state to boot
-            publish_state_msg(msg1, 1)
-        elif requestedState == "CALIBRATING":
-            print("setting state to calibrating")
-            modrive.requested_state(legalAxis,
-                                    AXIS_STATE_FULL_CALIBRATION_SEQUENCE)
-        # sets state to calibrating
-            publish_state_msg(msg1, 5)
-        elif (currentState == "ERROR"):
-            print ("current state is erorr")
-            if requestedState == "BOOT":
-                print("setting state to boot")
-                odrive.reboot()
-                # sets current state to boot
-                publish_state_msg(msg1, 1)
-            elif requestedState == "CALIBRATING":
-                print("setting state to calibrating")
-                modrive.requested_state(legalAxis,
-                                        AXIS_STATE_FULL_CALIBRATION_SEQUENCE)
-                # sets current state to calibrating
-                publish_state_msg(msg1, 5)
+            requestedState = publish_state_msg(msg1, 4)
+       
+    elif (currentState == "ERROR"):
+        print ("current state is erorr")
+        # sets current state to calibrating
+        # requestedState = publish_state_msg(msg1, 5)
     elif (currentState == "CALIBRATING"):
         print("current state is calibrating")
         # if odrive is done calibrating
@@ -235,15 +203,66 @@ def nextState():
                 modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
 
     # sets state to disarmed
-        publish_state_msg(msg1, 2)
+        requestedState = publish_state_msg(msg1, 2)
 
-    print("I SURVIVED NEXT STATE !!!")
+    lock.release()
+    return currentState
+
+def change_state(currentState):
+    global requestedState
+    if(requestedState == "BOOT"): #happens when you request boot  
+        if (currentState == "ARMED" or currentState == "DISARMED" 
+                        or currentState == "ERROR" or currentState == "NONE"):
+            if(currentState != "NONE"):
+                requestedState = "DISARMED" #makes sure it goes to find it
+                try:
+                    odrive.reboot() #doesnt run the first time aka when odrive hasnt' been found
+                except:
+                    print('channel error caught')
+                print("setting state to disarmed")
+
+            currentState = publish_state_msg(msg1, 1) #boot
+        else:
+            requestedState = currentState #could not change state
+
+    elif(requestedState == "DISARMED"):
+        currentState = publish_state_msg(msg1, 2) #2 = disarmed 
+
+    elif(requestedState == "ARMED"):
+        if (currentState == "DISARMED"):
+            print("setting state to armed")
+            modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
+            # sets state to armed
+            currentState = publish_state_msg(msg1, 3) #sets current state to armed
+        else:
+            requestedState = currentState #couldn't change state
+
+    elif(requestedState == "CALIBRATING"):
+        if (currentState == "DISARMED" or currentState == "ARMED" or currentState == "BOOT"):
+            print("setting state to calibrating")
+            modrive.requested_state(legalAxis, AXIS_STATE_FULL_CALIBRATION_SEQUENCE)
+            # sets state to calibrating
+            currentState = publish_state_msg(msg1, 5)
+        else:
+            requestedState = currentState #was not able to change state
+
+    elif(requestedState == "ERROR"):
+        currentState = publish_state_msg(msg1, 4)
+
+    return currentState
+
+    
 
 
 def odriver_req_state_callback(channel, msg):
+    print("requested state call back is being called")
+    global requestedState
+    lock.acquire()
     message = ODriver_Req_State.decode(msg)
     if message.serialid == sys.argv[1]:
         requestedState = states[message.requestState - 1]
+    else:
+        print("error incorrect serial ID")
     # TODO: check which axis are legal
     if requestedState == "EXIT":
         if legalAxis == "LEFT":
@@ -272,17 +291,20 @@ def odriver_req_state_callback(channel, msg):
                 modrive.set_vel(legalAxis, 0)
                 modrive.requested_state(legalAxis, AXIS_STATE_IDLE)
                 sys.exit()
+    lock.release()
 
 
 def odriver_req_vel_callback(channel, msg):
     # if the program is in an ARMED state
     #   set the odrive's velocity to the float specified in the message
     # no state change
+    lock.acquire()
     message = ODriver_Req_Vel.decode(msg)
     if message.serialid == sys.argv[1]:
         if(currentState == "ARMED"):
             modrive.requested_state(legalAxis, AXIS_STATE_CLOSED_LOOP_CONTROL)
             modrive.set_vel(legalAxis, message.vel)
+    lock.release()
 
 
 if __name__ == "__main__":
@@ -304,8 +326,8 @@ class Modrive:
         return getattr(self.odrive, attr)
 
     def set_current_lim(self, axis, lim):
-        if (lim > CURRENT_LIM):
-            lim = CURRENT_LIM
+        if (lim > self.CURRENT_LIM):
+            lim = self.CURRENT_LIM
         if (axis == "LEFT"):
             self.left_axis.motor.config.current_lim = lim
         elif (axis == "RIGHT"):
