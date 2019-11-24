@@ -42,6 +42,7 @@ def main():
     lock = threading.Lock()
     
     #For some reason having these here is causing the current and requested state to be over-ridden everytime the loop runs
+    global currentState
     currentState = "NONE"  # starting state
     global requestedState
     requestedState = "BOOT"  # starting requested state
@@ -131,7 +132,7 @@ def nextState(currentState):
         # attempt to connect to odrive
         print("looking for odrive")
         id = str(sys.argv[1])
-
+        print(id)
         odrive = odv.find_any(serial_number=id)
         t.sleep(3)
         print("found odrive")
@@ -167,7 +168,7 @@ def nextState(currentState):
         print("current state is armed")
         if (encoderTime - t.time() > 0.1):
             encoderTime = publish_encoder_msg(msg)
-        errors = odv.dump_errors(odrive)
+        errors = modrive.check_errors(legalAxis)
         if errors:
             print("found errors")
             # sets state to error
@@ -257,6 +258,7 @@ def change_state(currentState):
 def odriver_req_state_callback(channel, msg):
     print("requested state call back is being called")
     global requestedState
+    global modrive
     lock.acquire()
     message = ODriver_Req_State.decode(msg)
     if message.serialid == sys.argv[1]:
@@ -299,11 +301,17 @@ def odriver_req_vel_callback(channel, msg):
     #   set the odrive's velocity to the float specified in the message
     # no state change
     lock.acquire()
+    global currentState
+    global modrive
+    global legalAxis
     message = ODriver_Req_Vel.decode(msg)
     if message.serialid == sys.argv[1]:
         if(currentState == "ARMED"):
+            print("setting axis loop control")
             modrive.requested_state(legalAxis, AXIS_STATE_CLOSED_LOOP_CONTROL)
+            print("setting velocity")
             modrive.set_vel(legalAxis, message.vel)
+            print("velocity set")
     lock.release()
 
 
@@ -391,6 +399,7 @@ class Modrive:
 
     def set_vel(self, axis, vel):
         if (axis == "LEFT"):
+            print("setting left axis vel: " + vel)
             self.left_axis.controller.vel_setpoint = vel
         elif axis == "RIGHT":
             self.right_axis.controller.vel_setpoint = vel
