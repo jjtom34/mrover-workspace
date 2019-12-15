@@ -159,7 +159,7 @@ def nextState(currentState):
             encoderTime = t.time()
             publish_encoder_msg(msg)
         # unsure if this is right
-        modrive.set_vel(legalAxis, 0)
+
         modrive.requested_state(legalAxis, AXIS_STATE_IDLE)
         errors = modrive.check_errors(legalAxis)
         if errors:
@@ -194,6 +194,7 @@ def nextState(currentState):
         # TODO: add in check for finish calibration(axis == idle)
         if legalAxis == "LEFT":
             if modrive.get_current_state("LEFT") == AXIS_STATE_IDLE:
+                print("Setting current and control back")
                 modrive.set_current_lim(legalAxis, 100)
                 modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
         elif legalAxis == "RIGHT":
@@ -208,6 +209,7 @@ def nextState(currentState):
                 modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
 
     # sets state to disarmed
+        print("Finished All calibration")
         requestedState = publish_state_msg(msg1, 2)
 
     lock.release()
@@ -221,10 +223,9 @@ def change_state(currentState):
             if(currentState != "NONE"):
                 requestedState = "DISARMED" #makes sure it goes to find it
                 try:
-                    odrive.reboot() #doesnt run the first time aka when odrive hasnt' been found
+                     odrive.reboot() #doesnt run the first time aka when odrive hasnt' been found
                 except:
-                    print('channel error caught')
-                print("setting state to disarmed")
+                     print("setting state to disarmed")
 
             currentState = publish_state_msg(msg1, 1) #boot
         else:
@@ -246,9 +247,11 @@ def change_state(currentState):
         if (currentState == "DISARMED" or currentState == "ARMED" or currentState == "BOOT"):
             print("setting state to calibrating")
             modrive.requested_state(legalAxis, AXIS_STATE_FULL_CALIBRATION_SEQUENCE)
+            print("Full calibration")
             # sets state to calibrating
             currentState = publish_state_msg(msg1, 5)
         else:
+            print("Could not change state")
             requestedState = currentState #was not able to change state
 
     elif(requestedState == "ERROR"):
