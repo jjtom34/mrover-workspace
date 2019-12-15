@@ -155,9 +155,12 @@ def nextState(currentState):
 
         # Unsure if using correct timestamp
         if (t.time() - encoderTime > 0.1):
+            print("Sent Encoder Message")
             encoderTime = t.time()
             publish_encoder_msg(msg)
         # unsure if this is right
+        modrive.set_vel(legalAxis, 0)
+        modrive.requested_state(legalAxis, AXIS_STATE_IDLE)
         errors = modrive.check_errors(legalAxis)
         if errors:
             # sets state to error
@@ -167,6 +170,7 @@ def nextState(currentState):
     elif (currentState == "ARMED"):
         print("current state is armed")
         if (encoderTime - t.time() > 0.1):
+            print("Sent Encoder Message")
             encoderTime = publish_encoder_msg(msg)
         errors = modrive.check_errors(legalAxis)
         if errors:
@@ -399,7 +403,7 @@ class Modrive:
 
     def set_vel(self, axis, vel):
         if (axis == "LEFT"):
-            print("setting left axis vel: " + vel)
+            print("setting left axis vel: " + str(vel))
             self.left_axis.controller.vel_setpoint = vel
         elif axis == "RIGHT":
             self.right_axis.controller.vel_setpoint = vel
