@@ -149,16 +149,12 @@ def nextState(currentState):
 
     elif (currentState == "DISARMED"):
         print("current state is disarmed")
-        # if 100 ms have passed since last time data was published
-        #   publish an odrive_data lcm message with measured
-        #   current and estimated velocity
-
-        # Unsure if using correct timestamp
         if (t.time() - encoderTime > 0.1):
             print("Sent Encoder Message")
             encoderTime = t.time()
             publish_encoder_msg(msg)
-        # unsure if this is right
+        modrive.requested_state(legalAxis, AXIS_STATE_CLOSED_LOOP_CONTROL) #Calibration sets this to idle we need thi to set vel to 0
+        modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
         modrive.set_vel(legalAxis, 0)
         modrive.requested_state(legalAxis, AXIS_STATE_IDLE)
         errors = modrive.check_errors(legalAxis)
@@ -192,10 +188,12 @@ def nextState(currentState):
         # if odrive.
 
         # TODO: add in check for finish calibration(axis == idle)
+        
         if legalAxis == "LEFT":
             if modrive.get_current_state("LEFT") == AXIS_STATE_IDLE:
                 modrive.set_current_lim(legalAxis, 100)
                 modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
+
         elif legalAxis == "RIGHT":
             if modrive.get_current_state("RIGHT") == AXIS_STATE_IDLE:
                 modrive.set_current_lim(legalAxis, 100)
@@ -208,6 +206,7 @@ def nextState(currentState):
                 modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
 
     # sets state to disarmed
+        
         requestedState = publish_state_msg(msg1, 2)
 
     lock.release()
@@ -221,6 +220,7 @@ def change_state(currentState):
             if(currentState != "NONE"):
                 requestedState = "DISARMED" #makes sure it goes to find it
                 try:
+                    print('rebooting')
                     odrive.reboot() #doesnt run the first time aka when odrive hasnt' been found
                 except:
                     print('channel error caught')
@@ -246,10 +246,19 @@ def change_state(currentState):
         if (currentState == "DISARMED" or currentState == "ARMED" or currentState == "BOOT"):
             print("setting state to calibrating")
             modrive.requested_state(legalAxis, AXIS_STATE_FULL_CALIBRATION_SEQUENCE)
-            # sets state to calibrating
+            if legalAxis == "LEFT":
+                while modrive.get_current_state("LEFT") != AXIS_STATE_IDLE:
+                    t.sleep(0.1)            
+            elif legalAxis == "RIGHT":
+                while modrive.get_current_state("RIGHT") != AXIS_STATE_IDLE:
+                    t.sleep(0.1)            
+            elif legalAxis == "BOTH":
+                while modrive.get_current_state("LEFT") != AXIS_STATE_IDLE and modrive.get_current_state("RIGHT") != AXIS_STATE_IDLE:
+                    t.sleep(0.1)
             currentState = publish_state_msg(msg1, 5)
         else:
-            requestedState = currentState #was not able to change state
+            print("Could not change state")
+            requestedState = currentState #was not able to change state        s
 
     elif(requestedState == "ERROR"):
         currentState = publish_state_msg(msg1, 4)
