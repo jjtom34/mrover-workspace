@@ -13,6 +13,7 @@
       <div class="spacer"></div>
     </div>
     <div class="box checklist">
+      <button id="clear-button" @click="clearFeed()">Clear Feed</button>
       <ul id="channels">
         <li v-for="(checked, channel) in viewing" :key="channel">
           <input type="checkbox" :id="channel" v-model="viewing[channel]">
@@ -56,7 +57,7 @@
           '/autonomous': false,
           '/camera_servos': false,
           '/config_pid': false,
-          // '/course': false,
+          '/course': false,
           '/debugMessage': false,
           '/drive_control': false,
           '/encoder': false,
@@ -77,6 +78,7 @@
           '/sensor_switch': false,
           '/sensors': false,
           '/set_demand': false,
+          '/target_list': false,
           '/temperature': false,
           '/tennis_ball': false
 
@@ -87,7 +89,7 @@
           {'topic': '/ik_ra_control', 'type': 'ArmPosition'},
           {'topic': '/auton', 'type': 'AutonState'},
           {'topic': '/camera_servos', 'type': 'CameraServos'},
-          // {'topic': '/course', 'type': 'Course'},
+          {'topic': '/course', 'type': 'Course'},
           // {'topic': '', 'type': 'CurrentDraw'},
           {'topic': '/debugMessage', 'type': 'DebugMessage'},
           {'topic': '/motor', 'type': 'DriveMotors'},
@@ -108,6 +110,7 @@
           {'topic': '/sensor_switch', 'type': 'SensorSwitch'},
           {'topic': '/set_demand', 'type': 'SetDemand'},
           {'topic': '/config_pid', 'type': 'PIDConstants'},
+          {'topic': '/target_list', 'type': 'TargetList'},
           {'topic': '/temperature', 'type': 'Temperature'},
           {'topic': '/tennis_ball', 'type': 'TennisBall'},
           {'topic': '/sa_controls', 'type': 'Xbox'},
@@ -125,6 +128,10 @@
     methods: {
       updateScroll: function () {
         this.$refs.messagefeed.scrollTop = this.$refs.messagefeed.scrollHeight
+      },
+
+      clearFeed: function() {
+        this.messages = []
       }
     },
 
@@ -224,5 +231,19 @@
     display: inline;
     float: left;
     padding: 0px 10px 0px 0px;
+  }
+
+  #clear-button {
+    font-size: 16px;
+    text-decoration: none;
+    padding: 10px;
+    background: #ffcb05;
+    color: #00274c;
+    border-radius: 8px;
+    border: none;
+  }
+
+  #clear-button:active {
+    background: #f0c000;
   }
 </style>
