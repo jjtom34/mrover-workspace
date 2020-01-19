@@ -1,7 +1,7 @@
 package rover_msgs;
 
 struct ODriver_Req_Vel {
-	string odrive;
+	string controller;
     //front or back
     string motor;
     float vel;
