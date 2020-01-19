@@ -2,5 +2,6 @@ package rover_msgs;
 
 struct ODriver_Req_Vel {
 	string serialid;
+    string motor;
     float vel;
 }
