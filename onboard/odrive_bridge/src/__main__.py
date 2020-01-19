@@ -3,12 +3,8 @@ import sys
 import time as t
 import odrive as odv
 import threading
-# from ODriver_Req_State import *
-# from ODriver_Pub_Encoders import *
-# from ODriver_Req_Vel import *
-# from ODriver_Pub_State import *
-from rover_msgs import ODriver_Req_State, ODriver_Req_Vel, \
-    ODriver_Pub_State, ODriver_Pub_Encoders
+from rover_msgs import ODrive_Bridge_Req_State, ODrive_Bridge_Req_Vel, \
+    ODrive_Bridge_Pub_State, ODrive_Bridge_Pub_Encoders
 from odrive.enums import AXIS_STATE_CLOSED_LOOP_CONTROL, \
     CTRL_MODE_VELOCITY_CONTROL, AXIS_STATE_FULL_CALIBRATION_SEQUENCE, \
     AXIS_STATE_IDLE
@@ -27,8 +23,8 @@ def main():
 
     global msg
     global msg1
-    msg = ODriver_Pub_Encoders()
-    msg1 = ODriver_Pub_State()
+    msg = ODrive_Bridge_Pub_Encoders()
+    msg1 = ODrive_Bridge_Pub_State()
 
     global lock
     lock = threading.Lock()
@@ -52,8 +48,8 @@ def main():
 
 def lcmThreaderMan():
     lcm_1 = lcm.LCM()
-    lcm_1.subscribe("/odrive_bridge_req_state", odriver_req_state_callback)
-    lcm_1.subscribe("/odrive_bridge_req_vel", odriver_req_vel_callback)
+    lcm_1.subscribe("/odrive_bridge_req_state", odrive_bridge_req_state_callback)
+    lcm_1.subscribe("/odrive_bridge_req_vel", odrive_bridge_req_vel_callback)
     while True: 
         lcm_1.handle()
         t.sleep(1)
@@ -255,12 +251,12 @@ def change_state(currentState):
     
 
 
-def odriver_req_state_callback(channel, msg):
+def odrive_bridge_req_state_callback(channel, msg):
     print("requested state call back is being called")
     global requestedState
     global modrive
     lock.acquire()
-    message = ODriver_Req_State.decode(msg)
+    message = ODrive_Bridge_Req_State.decode(msg)
     if message.controller == sys.argv[1]:
         requestedState = states[message.requestState - 1]
     # TODO: check which axis are legal
@@ -294,7 +290,7 @@ def odriver_req_state_callback(channel, msg):
     lock.release()
 
 
-def odriver_req_vel_callback(channel, msg):
+def odrive_bridge_req_vel_callback(channel, msg):
     # if the program is in an ARMED state
     #   set the odrive's velocity to the float specified in the message
     # no state change
@@ -302,7 +298,7 @@ def odriver_req_vel_callback(channel, msg):
     global currentState
     global modrive
     global legalAxis
-    message = ODriver_Req_Vel.decode(msg)
+    message = ODrive_bridge_Req_Vel.decode(msg)
     if message.controller == sys.argv[1]:
         if(currentState == "ARMED"):
             modrive.requested_state(legalAxis, AXIS_STATE_CLOSED_LOOP_CONTROL)
