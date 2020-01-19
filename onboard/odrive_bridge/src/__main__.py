@@ -18,14 +18,6 @@ def main():
     global lcm_
     lcm_ = lcm.LCM()
 
-    # insert lcm subscribe statements here
-
-    # These have been mapped
-
-    #lcm_.subscribe("/odriver_req_state", odriver_req_state_callback)
-
-    #lcm_.subscribe("/odrive_req_vel", odriver_req_vel_callback)
-
     global modrive
     global legalAxis
     legalAxis = sys.argv[2]
@@ -60,13 +52,10 @@ def main():
 
 def lcmThreaderMan():
     lcm_1 = lcm.LCM()
-    lcm_1.subscribe("/odriver_req_state", odriver_req_state_callback)
-    lcm_1.subscribe("/odrive_req_vel", odriver_req_vel_callback)
-    print("lc threader set up")
+    lcm_1.subscribe("/odrive_bridge_req_state", odriver_req_state_callback)
+    lcm_1.subscribe("/odrive_bridge_req_vel", odriver_req_vel_callback)
     while True: 
-        print("trying to lcm handle")
         lcm_1.handle()
-        print("lcm handling")
         t.sleep(1)
         
 
@@ -81,7 +70,7 @@ odrive = None  # starting odrive
 def publish_state_msg(msg, state_number):
     msg.state = state_number
     msg.controller = sys.argv[1]
-    lcm_.publish("/odriver_pub_state", msg.encode())  # is lcm_ global?
+    lcm_.publish("/odrive_bridge_pub_state", msg.encode())
     print("changed state to " + states[state_number - 1])
     return states[state_number - 1]
 
@@ -94,7 +83,7 @@ def publish_encoder_helper(msg, axis):
         msg.axis = 'r'
     elif (axis == "LEFT"):
         msg.axis = 'l'
-    lcm_.publish("/odriver_pub_encoders", msg.encode())
+    lcm_.publish("/odrive_bridge_pub_encoders", msg.encode())
 
 
 def publish_encoder_msg(msg):
@@ -112,8 +101,6 @@ def publish_encoder_msg(msg):
 
 def nextState(currentState):
     lock.acquire()
-    print("Moving to next state")
-    
     # every time the state changes,
     # publish an odrive_state lcm message, with the new state
     #global currentState
@@ -152,7 +139,6 @@ def nextState(currentState):
         requestedState = publish_state_msg(msg1, 2)
 
     elif (currentState == "DISARMED"):
-        print("current state is disarmed")
         if (t.time() - encoderTime > 0.1):
             print("Sent Encoder Message")
             encoderTime = t.time()
@@ -161,13 +147,13 @@ def nextState(currentState):
         modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
         if legalAxis == "LEFT":
             if modrive.get_vel_estimate("LEFT") != 0:
-                modrive.set_vel(legalAxis,0)                
+                modrive.set_vel(legalAxis,"LEFT",0)                
         elif legalAxis == "RIGHT":
                 if modrive.get_vel_estimate("RIGHT") != 0:
-                    modrive.set_vel(legalAxis,0)
+                    modrive.set_vel(legalAxis,"RIGHT",0)
         elif legalAxis == "BOTH":
                 if modrive.get_vel_estimate("LEFT") != 0 and modrive.get_vel_estimate("LEFT") != 0:
-                    modrive.set_vel(legalAxis,0)
+                    modrive.set_vel(legalAxis,"BOTH",0)
         modrive.requested_state(legalAxis, AXIS_STATE_IDLE)
         errors = modrive.check_errors(legalAxis)
         if errors:
@@ -175,7 +161,6 @@ def nextState(currentState):
             requestedState = publish_state_msg(msg1, 4)
 
     elif (currentState == "ARMED"):
-        print("current state is armed")
         if (encoderTime - t.time() > 0.1):
             print("Sent Encoder Message")
             encoderTime = publish_encoder_msg(msg)
@@ -185,11 +170,9 @@ def nextState(currentState):
             requestedState = publish_state_msg(msg1, 4)
        
     elif (currentState == "ERROR"):
-        print ("current state is erorr")
         # sets current state to calibrating
         # requestedState = publish_state_msg(msg1, 5)
     elif (currentState == "CALIBRATING"):
-        print("current state is calibrating")
         # if odrive is done calibrating
         #   set current limit on odrive to 100
         #   set controller's control mode to velocity control
@@ -203,7 +186,6 @@ def nextState(currentState):
             if modrive.get_current_state("LEFT") == AXIS_STATE_IDLE:
                 modrive.set_current_lim(legalAxis, 100)
                 modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
-
         elif legalAxis == "RIGHT":
             if modrive.get_current_state("RIGHT") == AXIS_STATE_IDLE:
                 modrive.set_current_lim(legalAxis, 100)
@@ -227,14 +209,13 @@ def change_state(currentState):
     if(requestedState == "BOOT"): #happens when you request boot  
         if (currentState == "ARMED" or currentState == "DISARMED" 
                         or currentState == "ERROR" or currentState == "NONE"):
-            if(currentState != "NONE"):
+            if(currentState != "NONE"): #Doesn't run on start b/c no current state
                 requestedState = "DISARMED" #makes sure it goes to find it
                 try:
                     print('rebooting')
                     odrive.reboot() #doesnt run the first time aka when odrive hasnt' been found
                 except:
                     print('channel error caught')
-                print("setting state to disarmed")
 
             currentState = publish_state_msg(msg1, 1) #boot
         else:
@@ -245,16 +226,13 @@ def change_state(currentState):
 
     elif(requestedState == "ARMED"):
         if (currentState == "DISARMED"):
-            print("setting state to armed")
             modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
-            # sets state to armed
             currentState = publish_state_msg(msg1, 3) #sets current state to armed
         else:
             requestedState = currentState #couldn't change state
 
     elif(requestedState == "CALIBRATING"):
         if (currentState == "DISARMED" or currentState == "ARMED" or currentState == "BOOT"):
-            print("setting state to calibrating")
             modrive.requested_state(legalAxis, AXIS_STATE_FULL_CALIBRATION_SEQUENCE)
             if legalAxis == "LEFT":
                 while modrive.get_current_state("LEFT") != AXIS_STATE_IDLE:
@@ -267,10 +245,9 @@ def change_state(currentState):
                     t.sleep(0.1)
             currentState = publish_state_msg(msg1, 5)
         else:
-            print("Could not change state")
             requestedState = currentState #was not able to change state        s
 
-    elif(requestedState == "ERROR"):
+    elif(requestedState == "ERROR"): #Never go here
         currentState = publish_state_msg(msg1, 4)
 
     return currentState
@@ -286,7 +263,6 @@ def odriver_req_state_callback(channel, msg):
     message = ODriver_Req_State.decode(msg)
     if message.controller == sys.argv[1]:
         requestedState = states[message.requestState - 1]
-    else:
     # TODO: check which axis are legal
     if requestedState == "EXIT":
         if legalAxis == "LEFT":
@@ -294,7 +270,7 @@ def odriver_req_state_callback(channel, msg):
                     modrive.get_current_state("LEFT") == AXIS_STATE_IDLE:
                 sys.exit()
             else:
-                modrive.set_vel(legalAxis, 0)
+                modrive.set_vel(legalAxis, "LEFT", 0)
                 modrive.requested_state(legalAxis, AXIS_STATE_IDLE)
                 sys.exit()
         elif legalAxis == "RIGHT":
@@ -302,7 +278,7 @@ def odriver_req_state_callback(channel, msg):
                     modrive.get_current_state("RIGHT") == AXIS_STATE_IDLE:
                 sys.exit()
             else:
-                modrive.set_vel(legalAxis, 0)
+                modrive.set_vel(legalAxis,"RIGHT", 0)
                 modrive.requested_state(legalAxis, AXIS_STATE_IDLE)
                 sys.exit()
         elif legalAxis == "BOTH":
@@ -312,7 +288,7 @@ def odriver_req_state_callback(channel, msg):
                     and modrive.get_current_state("RIGHT") == AXIS_STATE_IDLE:
                 sys.exit()
             else:
-                modrive.set_vel(legalAxis, 0)
+                modrive.set_vel(legalAxis,"BOTH" 0)
                 modrive.requested_state(legalAxis, AXIS_STATE_IDLE)
                 sys.exit()
     lock.release()
@@ -327,13 +303,10 @@ def odriver_req_vel_callback(channel, msg):
     global modrive
     global legalAxis
     message = ODriver_Req_Vel.decode(msg)
-    if message.serialid == sys.argv[1]:
+    if message.controller == sys.argv[1]:
         if(currentState == "ARMED"):
-            print("setting axis loop control")
             modrive.requested_state(legalAxis, AXIS_STATE_CLOSED_LOOP_CONTROL)
-            print("setting velocity")
-            modrive.set_vel(legalAxis, message.vel)
-            print("velocity set")
+            modrive.set_vel(legalAxis, message.motor, message.vel)
     lock.release()
 
 
@@ -413,14 +386,21 @@ class Modrive:
 
     # odrive.axis0.encoder.vel_estimate == 0
 
-    def set_vel(self, axis, vel):
+    def set_vel(self, axis, motor, vel):
         if (axis == "LEFT"):
-            self.left_axis.controller.vel_setpoint = vel
+            if motor == "LEFT":
+                self.left_axis.controller.vel_setpoint = vel
         elif axis == "RIGHT":
-            self.right_axis.controller.vel_setpoint = vel
+            if motor == "RIGHT":
+                self.right_axis.controller.vel_setpoint = vel
         elif axis == "BOTH":
-            self.left_axis.controller.vel_setpoint = vel
-            self.right_axis.controller.vel_setpoint = vel
+            if motor == "LEFT":
+                self.left_axis.controller.vel_setpoint = vel
+            if motor == "RIGHT":
+                self.right_axis.controller.vel_setpoint = vel
+            if motor == "BOTH":
+                self.left_axis.controller.vel_setpoint = vel
+                self.right_axis.controller.vel_setpoint = vel
         else:
             print("ERROR, unknown axis")
 
