@@ -1,6 +1,6 @@
 package rover_msgs;
 
-struct ODriver_Req_State {
+struct ODrive_Bridge_Req_State {
 	string controller;
 	//front or back
 	int8_t requestState;

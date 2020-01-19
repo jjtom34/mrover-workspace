@@ -1,6 +1,6 @@
 package rover_msgs;
 
-struct ODriver_Req_Vel {
+struct ODrive_Bridge_Req_Vel {
 	string controller;
     //front or back
     string motor;
