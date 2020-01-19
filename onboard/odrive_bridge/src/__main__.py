@@ -80,7 +80,7 @@ odrive = None  # starting odrive
 
 def publish_state_msg(msg, state_number):
     msg.state = state_number
-    msg.serialid = sys.argv[1]
+    msg.controller = sys.argv[1]
     lcm_.publish("/odriver_pub_state", msg.encode())  # is lcm_ global?
     print("changed state to " + states[state_number - 1])
     return states[state_number - 1]
@@ -89,7 +89,7 @@ def publish_state_msg(msg, state_number):
 def publish_encoder_helper(msg, axis):
     msg.measuredCurrent = modrive.get_iq_measured(axis)
     msg.estvel = modrive.get_vel_estimate(axis)
-    msg.serialid = sys.argv[1]
+    msg.controller = sys.argv[1]
     if (axis == "RIGHT"):
         msg.axis = 'r'
     elif (axis == "LEFT"):
@@ -132,6 +132,10 @@ def nextState(currentState):
         # attempt to connect to odrive
         print("looking for odrive")
         id = str(sys.argv[1])
+        if sys.argv[1] == "front":
+            id = "334F314C3536"
+        if sys.argv[1] == "back":
+            id = "Put back odrive id here"
         print(id)
         odrive = odv.find_any(serial_number=id)
         t.sleep(3)
@@ -155,12 +159,19 @@ def nextState(currentState):
             publish_encoder_msg(msg)
         modrive.requested_state(legalAxis, AXIS_STATE_CLOSED_LOOP_CONTROL) #Calibration sets this to idle we need thi to set vel to 0
         modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
-        modrive.set_vel(legalAxis, 0)
+        if legalAxis == "LEFT":
+            if modrive.get_vel_estimate("LEFT") != 0:
+                modrive.set_vel(legalAxis,0)                
+        elif legalAxis == "RIGHT":
+                if modrive.get_vel_estimate("RIGHT") != 0:
+                    modrive.set_vel(legalAxis,0)
+        elif legalAxis == "BOTH":
+                if modrive.get_vel_estimate("LEFT") != 0 and modrive.get_vel_estimate("LEFT") != 0:
+                    modrive.set_vel(legalAxis,0)
         modrive.requested_state(legalAxis, AXIS_STATE_IDLE)
         errors = modrive.check_errors(legalAxis)
         if errors:
             # sets state to error
-            print("found errors")
             requestedState = publish_state_msg(msg1, 4)
 
     elif (currentState == "ARMED"):
@@ -170,7 +181,6 @@ def nextState(currentState):
             encoderTime = publish_encoder_msg(msg)
         errors = modrive.check_errors(legalAxis)
         if errors:
-            print("found errors")
             # sets state to error
             requestedState = publish_state_msg(msg1, 4)
        
@@ -274,10 +284,9 @@ def odriver_req_state_callback(channel, msg):
     global modrive
     lock.acquire()
     message = ODriver_Req_State.decode(msg)
-    if message.serialid == sys.argv[1]:
+    if message.controller == sys.argv[1]:
         requestedState = states[message.requestState - 1]
     else:
-        print("error incorrect serial ID")
     # TODO: check which axis are legal
     if requestedState == "EXIT":
         if legalAxis == "LEFT":
@@ -353,7 +362,7 @@ class Modrive:
             self.left_axis.motor.config.current_lim = lim
         elif (axis == "RIGHT"):
             self.right_axis.motor.config.current_lim = lim
-        else:
+        elif (axis == "BOTH"):
             self.left_axis.motor.config.current_lim = lim
             self.right_axis.motor.config.current_lim = lim
 
@@ -398,21 +407,14 @@ class Modrive:
             self.left_axis.requested_state = state
         elif (axis == "RIGHT"):
                 self.right_axis.requested_state = state
-        else:
+        elif (axis == "BOTH"):
             self.right_axis.requested_state = state
             self.left_axis.requested_state = state
 
     # odrive.axis0.encoder.vel_estimate == 0
 
-    def est_vel(self, axis):
-        if (axis == "LEFT"):
-            return self.left_axis.encoder.vel_estimate
-        elif (axis == "RIGHT"):
-            return self.right_axis.encoder.vel_estimate
-
     def set_vel(self, axis, vel):
         if (axis == "LEFT"):
-            print("setting left axis vel: " + str(vel))
             self.left_axis.controller.vel_setpoint = vel
         elif axis == "RIGHT":
             self.right_axis.controller.vel_setpoint = vel

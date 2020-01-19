@@ -1,6 +1,6 @@
 package rover_msgs;
 
-struct ODriver_Pub_Encoders {
+struct ODrive_Bridge_Pub_Encoders {
 	string controller;
     //front or back
     float measuredCurrent;
