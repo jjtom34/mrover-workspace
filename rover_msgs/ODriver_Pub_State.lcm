@@ -1,7 +1,8 @@
 package rover_msgs;
 
 struct ODriver_Pub_State {
-	string serialid;
+	string odrive;
+	//front or back
     int8_t state;
 	// 1 Boot
 	// 2 Disarmed

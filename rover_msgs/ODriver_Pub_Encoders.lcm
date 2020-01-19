@@ -1,7 +1,8 @@
 package rover_msgs;
 
 struct ODriver_Pub_Encoders {
-	string serialid;
+	string odrive;
+    //front or back
     float measuredCurrent;
     float estvel;
     string axis; //l or r
