@@ -4,11 +4,11 @@ import time as t
 import odrive as odv
 import threading
 from rover_msgs import ODrive_Bridge_Req_State, ODrive_Bridge_Req_Vel, \
-    ODrive_Bridge_Pub_State, ODrive_Bridge_Pub_Encoders, ODrive_Bridge_Pub_Error
+    ODrive_Bridge_Pub_State, ODrive_Bridge_Pub_Encoders
 from odrive.enums import AXIS_STATE_CLOSED_LOOP_CONTROL, \
     CTRL_MODE_VELOCITY_CONTROL, AXIS_STATE_FULL_CALIBRATION_SEQUENCE, \
     AXIS_STATE_IDLE
-# from . import modrive as Modrive
+#from . import modrive as Modrive
 
 
 def main():
@@ -18,20 +18,18 @@ def main():
     global modrive
     global legalAxis
     legalAxis = sys.argv[2]
-
     if (legalAxis != "LEFT" and legalAxis != "RIGHT" and legalAxis != "BOTH"):
         print("invalid odrive axis given")
 
     global msg
     global msg1
-    global errormsg
     msg = ODrive_Bridge_Pub_Encoders()
     msg1 = ODrive_Bridge_Pub_State()
-    errormsg = ODrive_Bridge_Pub_Error()
 
     global lock
     lock = threading.Lock()
-
+    
+    #For some reason having these here is causing the current and requested state to be over-ridden everytime the loop runs
     global currentState
     currentState = "NONE"  # starting state
     global requestedState
@@ -181,7 +179,6 @@ def nextState(currentState):
         # if odrive.
 
         # TODO: add in check for finish calibration(axis == idle)
-
         if legalAxis == "LEFT":
             if modrive.get_current_state("LEFT") == AXIS_STATE_IDLE:
                 modrive.set_current_lim(legalAxis, 100)
@@ -198,7 +195,6 @@ def nextState(currentState):
                 modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
 
     # sets state to disarmed
-
         requestedState = publish_state_msg(msg1, 2)
 
     lock.release()
@@ -316,7 +312,6 @@ def odrive_bridge_req_vel_callback(channel, msg):
 
 if __name__ == "__main__":
     main()
-
 
 class Modrive:
     CURRENT_LIM = 30
