@@ -3,12 +3,11 @@ import sys
 import time as t
 import odrive as odv
 import threading
-from rover_msgs import DriveStateCmd, DriveVelCMD \
+from rover_msgs import DriveStateCmd, DriveVelCmd, \
     DriveStateData, DriveVelData
 from odrive.enums import AXIS_STATE_CLOSED_LOOP_CONTROL, \
     CTRL_MODE_VELOCITY_CONTROL, AXIS_STATE_FULL_CALIBRATION_SEQUENCE, \
     AXIS_STATE_IDLE
-#from . import modrive as Modrive
 
 
 def main():
@@ -17,7 +16,7 @@ def main():
 
     global modrive
     global legalController
-    controller = sys.argv[1]
+    legalController = sys.argv[1]
     global legalAxis
     legalAxis = sys.argv[2]
     if (legalAxis != "FRONT" and legalAxis != "BACK" and legalAxis != "BOTH"):
@@ -30,13 +29,14 @@ def main():
 
     global lock
     lock = threading.Lock()
-    
-    #For some reason having these here is causing the current and requested state to be over-ridden everytime the loop runs
+
     global currentState
     currentState = "NONE"  # starting state
     global requestedState
     requestedState = "BOOT"  # starting requested state
 
+    global encoderTime
+    encoderTime = 0
     threading._start_new_thread(lcmThreaderMan, ())
 
     while True:
@@ -58,8 +58,8 @@ def lcmThreaderMan():
         t.sleep(1)
 
 
-states = ["DISARMED", "ARMED", "CALIBRATING", "EXIT"]
-# Program states possible - DISARMED, ARMED, CALIBRATING, EXIT
+states = ["BOOT", "DISARMED", "ARMED", "ERROR", "CALIBRATING", "EXIT"]
+# Program states possible - BOOT,  DISARMED, ARMED, ERROR, CALIBRATING, EXIT
 # 							1		 2	      3	            4
 
 odrive = None  # starting odrive
@@ -67,7 +67,7 @@ odrive = None  # starting odrive
 
 def publish_state_msg(msg, state_number):
     msg.state = state_number
-    msg.controller = sys.argv[1]
+    msg.controller = int(sys.argv[1])
     lcm_.publish("/drivestatedata", msg.encode())
     print("changed state to " + states[state_number - 1])
     return states[state_number - 1]
@@ -76,7 +76,7 @@ def publish_state_msg(msg, state_number):
 def publish_encoder_helper(msg, axis):
     msg.measuredCurrent = modrive.get_iq_measured(axis)
     msg.estvel = modrive.get_vel_estimate(axis)
-    
+
     if (axis == "BACK"):
         if (legalController == 0):
             msg.axis = 2
@@ -121,7 +121,7 @@ def nextState(currentState):
     if (currentState == "BOOT"):
         # attempt to connect to odrive
         print("looking for odrive")
-        
+
         if sys.argv[1] == "0":
             id = "334F314C3536"
         if sys.argv[1] == "1":
@@ -140,7 +140,6 @@ def nextState(currentState):
         # set currentState to DISARMED
         print(currentState)
         requestedState = publish_state_msg(msg1, 2)
-
     elif (currentState == "DISARMED"):
         if (t.time() - encoderTime > 0.1):
             print("Sent Encoder Message")
@@ -250,9 +249,10 @@ def change_state(currentState):
                 while modrive.get_current_state("BACK") != AXIS_STATE_IDLE:
                     t.sleep(0.1)
             elif legalAxis == "BOTH":
-                while (modrive.get_current_state("FRONT") != AXIS_STATE_IDLE and
-                        modrive.get_current_state("BACK") != AXIS_STATE_IDLE):
-                    t.sleep(0.1)
+                while (modrive.get_current_state("FRONT") != AXIS_STATE_IDLE
+                        and modrive.get_current_state("BACK")
+                        != AXIS_STATE_IDLE):
+                            t.sleep(0.1)
             currentState = publish_state_msg(msg1, 5)
         else:
             requestedState = currentState  # was not able to change states
@@ -313,17 +313,21 @@ def drivevelcmd_callback(channel, msg):
     if(currentState == "ARMED"):
         if (legalController == 0):
             if (message.axis == 0):
-                    modrive.requested_state(legalAxis, AXIS_STATE_CLOSED_LOOP_CONTROL)
+                    modrive.requested_state(legalAxis,
+                                            AXIS_STATE_CLOSED_LOOP_CONTROL)
                     modrive.set_vel("FRONT", message.vel)
             if (message.axis == 2):
-                    modrive.requested_state(legalAxis, AXIS_STATE_CLOSED_LOOP_CONTROL)
+                    modrive.requested_state(legalAxis,
+                                            AXIS_STATE_CLOSED_LOOP_CONTROL)
                     modrive.set_vel("BACK", message.vel)
         if (legalController == 1):
             if (message.axis == 1):
-                    modrive.requested_state(legalAxis, AXIS_STATE_CLOSED_LOOP_CONTROL)
+                    modrive.requested_state(legalAxis,
+                                            AXIS_STATE_CLOSED_LOOP_CONTROL)
                     modrive.set_vel("FRONT", message.vel)
             if (message.axis == 3):
-                    modrive.requested_state(legalAxis, AXIS_STATE_CLOSED_LOOP_CONTROL)
+                    modrive.requested_state(legalAxis,
+                                            AXIS_STATE_CLOSED_LOOP_CONTROL)
                     modrive.set_vel("BACK", message.vel)
 
     lock.release()
@@ -331,6 +335,7 @@ def drivevelcmd_callback(channel, msg):
 
 if __name__ == "__main__":
     main()
+
 
 class Modrive:
     CURRENT_LIM = 30
