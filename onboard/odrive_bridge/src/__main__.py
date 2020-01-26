@@ -62,6 +62,7 @@ states = ["BOOT", "DISARMED", "ARMED", "ERROR", "CALIBRATING", "EXIT"]
 # Program states possible - BOOT,  DISARMED, ARMED, ERROR, CALIBRATING, EXIT
 # 							1		 2	      3	            4
 
+
 odrive = None  # starting odrive
 
 
@@ -270,34 +271,40 @@ def drivestatecmd_callback(channel, msg):
     lock.acquire()
     message = DriveStateCmd.decode(msg)
     if message.controller == sys.argv[1]:  # Check which controller
-        requestedState = states[message.state - 1]
-    if requestedState == "EXIT":
-        if legalAxis == "FRONT":
-            if modrive.get_vel_estimate("FRONT") == 0 and \
-                    modrive.get_current_state("FRONT") == AXIS_STATE_IDLE:
-                sys.exit()
-            else:
-                modrive.set_vel(legalAxis, 0)
-                modrive.requested_state(legalAxis, AXIS_STATE_IDLE)
-                sys.exit()
-        elif legalAxis == "BACK":
-            if modrive.get_vel_estimate("BACK") == 0 and \
-                    modrive.get_current_state("BACK") == AXIS_STATE_IDLE:
-                sys.exit()
-            else:
-                modrive.set_vel(legalAxis, 0)
-                modrive.requested_state(legalAxis, AXIS_STATE_IDLE)
-                sys.exit()
-        elif legalAxis == "BOTH":
-            if modrive.get_vel_estimate("FRONT") == 0 and \
-                    modrive.get_current_state("FRONT") == AXIS_STATE_IDLE \
-                    and modrive.get_vel_estimate("BACK") == 0 \
-                    and modrive.get_current_state("BACK") == AXIS_STATE_IDLE:
-                sys.exit()
-            else:
-                modrive.set_vel(legalAxis, 0)
-                modrive.requested_state(legalAxis, AXIS_STATE_IDLE)
-                sys.exit()
+        if (message.state == 1):
+            requestedState = "DISARMED"
+        elif (message.state == 2):
+            requestedState = "ARMED"
+        elif (message.state == 3):
+            requestedState = "CALIBRATING"
+
+    # if requestedState == "EXIT":
+    #     if legalAxis == "FRONT":
+    #         if modrive.get_vel_estimate("FRONT") == 0 and \
+    #                 modrive.get_current_state("FRONT") == AXIS_STATE_IDLE:
+    #             sys.exit()
+    #         else:
+    #             modrive.set_vel(legalAxis, 0)
+    #             modrive.requested_state(legalAxis, AXIS_STATE_IDLE)
+    #             sys.exit()
+    #     elif legalAxis == "BACK":
+    #         if modrive.get_vel_estimate("BACK") == 0 and \
+    #                 modrive.get_current_state("BACK") == AXIS_STATE_IDLE:
+    #             sys.exit()
+    #         else:
+    #             modrive.set_vel(legalAxis, 0)
+    #             modrive.requested_state(legalAxis, AXIS_STATE_IDLE)
+    #             sys.exit()
+    #     elif legalAxis == "BOTH":
+    #         if modrive.get_vel_estimate("FRONT") == 0 and \
+    #                 modrive.get_current_state("FRONT") == AXIS_STATE_IDLE \
+    #                 and modrive.get_vel_estimate("BACK") == 0 \
+    #                 and modrive.get_current_state("BACK") == AXIS_STATE_IDLE:
+    #             sys.exit()
+    #         else:
+    #             modrive.set_vel(legalAxis, 0)
+    #             modrive.requested_state(legalAxis, AXIS_STATE_IDLE)
+    #             sys.exit()
     lock.release()
 
 
