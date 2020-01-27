@@ -59,8 +59,8 @@ def lcmThreaderMan():
 
 
 states = ["BOOT", "DISARMED", "ARMED", "ERROR", "CALIBRATING", "EXIT", "NONE"]
-# Program states possible - BOOT,  DISARMED, ARMED, ERROR, CALIBRATING, EXIT
-# 							1		 2	      3	            4
+# Program states possible - BOOT,  DISARMED, ARMED, ERROR, CALIBRATING, EXIT, NONE
+# 							1		 2	      3	      4       5          6      7
 
 
 odrive = None  # starting odrive
@@ -119,164 +119,170 @@ def nextState(currentState):
     if (currentState != requestedState):
         currentState = change_state(currentState)
 
-    if (currentState == "BOOT"):
-        # attempt to connect to odrive
-        print("looking for odrive")
+    try:
+        if (currentState == "BOOT"):
+            # attempt to connect to odrive
+            print("looking for odrive")
 
-        if sys.argv[1] == "0":
-            id = "2091358E524B"
-        if sys.argv[1] == "1":
-            id = "Put back odrive id here"
-        print(id)
-        odrive = odv.find_any(serial_number=id)
-        t.sleep(3)
-        print("found odrive")
-        modrive = Modrive(odrive)  # arguments = odr
-        encoderTime = t.time()
-        #reset odrive 
-        if(legalAxis != "BOTH"):
-            modrive.reset(legalAxis)
-        else:
-            modrive.reset("FRONT")
-            modrive.reset("BACK")
-        # Block until odrive is connected
-        # set current limit on odrive to 100
-        modrive.set_current_lim(legalAxis, 100)
-        # set controller's control mode to velocity control
-        modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
-        # set currentState to DISARMED
-        print(currentState)
-        requestedState = publish_state_msg(msg1, 2)
-    elif (currentState == "DISARMED"):
-        if (t.time() - encoderTime > 0.1):
-            print("Sent Encoder Message")
+            if sys.argv[1] == "0":
+                id = "2091358E524B"
+            if sys.argv[1] == "1":
+                id = "Put back odrive id here"
+            print(id)
+            odrive = odv.find_any(serial_number=id)
+            t.sleep(3)
+            print("found odrive")
+            modrive = Modrive(odrive)  # arguments = odr
             encoderTime = t.time()
-            publish_encoder_msg(msg)
-        modrive.requested_state(legalAxis, AXIS_STATE_CLOSED_LOOP_CONTROL)
-        # Calibration sets this to idle we need thi to set vel to 0
-        modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
-        if legalAxis == "FRONT":
-            if modrive.get_vel_estimate("FRONT") != 0:
-                modrive.set_vel(legalAxis, 0)
-        elif legalAxis == "BACK":
-                if modrive.get_vel_estimate("BACK") != 0:
+            #reset odrive 
+            if(legalAxis != "BOTH"):
+                modrive.reset(legalAxis)
+            else:
+                modrive.reset("FRONT")
+                modrive.reset("BACK")
+            # Block until odrive is connected
+            # set current limit on odrive to 100
+            modrive.set_current_lim(legalAxis, 100)
+            # set controller's control mode to velocity control
+            modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
+            # set currentState to DISARMED
+            print(currentState)
+            requestedState = publish_state_msg(msg1, 2)
+        elif (currentState == "DISARMED"):
+            if (t.time() - encoderTime > 0.1):
+                print("Sent Encoder Message")
+                encoderTime = t.time()
+                publish_encoder_msg(msg)
+            modrive.requested_state(legalAxis, AXIS_STATE_CLOSED_LOOP_CONTROL)
+            # Calibration sets this to idle we need thi to set vel to 0
+            modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
+            if legalAxis == "FRONT":
+                if modrive.get_vel_estimate("FRONT") != 0:
                     modrive.set_vel(legalAxis, 0)
-        elif legalAxis == "BOTH":
-                if (modrive.get_vel_estimate("FRONT") != 0 and
-                        modrive.get_vel_estimate("BACK") != 0):
+            elif legalAxis == "BACK":
+                    if modrive.get_vel_estimate("BACK") != 0:
                         modrive.set_vel(legalAxis, 0)
-        modrive.requested_state(legalAxis, AXIS_STATE_IDLE)
-        try:
+            elif legalAxis == "BOTH":
+                    if (modrive.get_vel_estimate("FRONT") != 0 and
+                            modrive.get_vel_estimate("BACK") != 0):
+                            modrive.set_vel(legalAxis, 0)
+            modrive.requested_state(legalAxis, AXIS_STATE_IDLE)
             errors = modrive.check_errors(legalAxis)
             if errors:
                 # sets state to error
                 requestedState = publish_state_msg(msg1, 4)
-        except AttributeError:
-            print('odrive disconnected')
-            requestedState = publish_state_msg(msg, 4)
 
-    elif (currentState == "ARMED"):
-        if (encoderTime - t.time() > 0.1):
-            print("Sent Encoder Message")
-            encoderTime = publish_encoder_msg(msg)
-        try:
+        elif (currentState == "ARMED"):
+            if (encoderTime - t.time() > 0.1):
+                print("Sent Encoder Message")
+                encoderTime = publish_encoder_msg(msg)
             errors = modrive.check_errors(legalAxis)
-        except AttributeError:
-            print('odrive disconnected')
-            requestedState = publish_state_msg(msg1, 7)
 
-        if errors:
-            # sets state to error
-            requestedState = publish_state_msg(msg1, 4)
+            if errors:
+                # sets state to error
+                requestedState = publish_state_msg(msg1, 4)
 
-    elif (currentState == "ERROR"):
-        # sets current state to calibrating
-        requestedState = publish_state_msg(msg1, 1)
-    elif (currentState == "CALIBRATING"):
-        # if odrive is done calibrating
-        #   set current limit on odrive to 100
-        #   set controller's control mode to velocity control
-        #   set currentState to DISARMED
-        # We don't know how to check if done calibrating
-        # if odrive.
+        elif (currentState == "ERROR"):
+            # sets current state to calibrating
+            requestedState = publish_state_msg(msg1, 1)
+        elif (currentState == "CALIBRATING"):
+            # if odrive is done calibrating
+            #   set current limit on odrive to 100
+            #   set controller's control mode to velocity control
+            #   set currentState to DISARMED
+            # We don't know how to check if done calibrating
 
-        # TODO: add in check for finish calibration(axis == idle)
-        if legalAxis == "FRONT":
-            if modrive.get_current_state("FRONT") == AXIS_STATE_IDLE:
-                modrive.set_current_lim(legalAxis, 100)
-                modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
-        elif legalAxis == "BACK":
-            if modrive.get_current_state("BACK") == AXIS_STATE_IDLE:
-                modrive.set_current_lim(legalAxis, 100)
-                modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
-        elif legalAxis == "BOTH":
-            if modrive.get_current_state("FRONT") == AXIS_STATE_IDLE \
-                        and modrive.get_current_state(
-                            "BACK") == AXIS_STATE_IDLE:
-                modrive.set_current_lim(legalAxis, 100)
-                modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
+            # TODO: add in check for finish calibration(axis == idle)
+            if legalAxis == "FRONT":
+                if modrive.get_current_state("FRONT") == AXIS_STATE_IDLE:
+                    modrive.set_current_lim(legalAxis, 100)
+                    modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
+            elif legalAxis == "BACK":
+                if modrive.get_current_state("BACK") == AXIS_STATE_IDLE:
+                    modrive.set_current_lim(legalAxis, 100)
+                    modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
+            elif legalAxis == "BOTH":
+                if modrive.get_current_state("FRONT") == AXIS_STATE_IDLE \
+                            and modrive.get_current_state(
+                                "BACK") == AXIS_STATE_IDLE:
+                    modrive.set_current_lim(legalAxis, 100)
+                    modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
 
-    # sets state to disarmed
-        requestedState = publish_state_msg(msg1, 2)
+        # sets state to disarmed
+            requestedState = publish_state_msg(msg1, 2)
+        
+        lock.release()
+    except AttributeError:
+        print("odrive disconnected")
+        requestedState = "NONE"
 
-    lock.release()
     return currentState
 
 
 def change_state(currentState):
     global requestedState
-    if(requestedState == "BOOT"):  # happens when you request boot
-        if (currentState == "ARMED" or currentState == "DISARMED"
-                or currentState == "ERROR" or currentState == "NONE"):
-            if(currentState != "NONE"):
-                # Doesn't run on start b/c no current state
-                requestedState = "DISARMED"  # makes sure it goes to find it
-                try:
-                    print('rebooting')
-                    odrive.reboot()  # only runs after initial pairing
-                except:
-                    print('channel error caught')
+    try:
+        if(requestedState == "BOOT"):  # happens when you request boot
+            if (currentState == "ARMED" or currentState == "DISARMED"
+                    or currentState == "ERROR" or currentState == "NONE"):
+                if(currentState != "NONE"):
+                    # Doesn't run on start b/c no current state
+                    requestedState = "DISARMED"  # makes sure it goes to find it
+                    try:
+                        print('rebooting')
+                        odrive.reboot()  # only runs after initial pairing
+                    except:
+                        print('channel error caught')
 
-            currentState = publish_state_msg(msg1, 1)  # boot
-        else:
-            requestedState = currentState  # could not change state
+                currentState = publish_state_msg(msg1, 1)  # boot
+            else:
+                requestedState = currentState  # could not change state
 
-    elif(requestedState == "DISARMED"):
-        currentState = publish_state_msg(msg1, 2)  # 2 = disarmed
+        elif(requestedState == "DISARMED"):
+            if (currentState == "NONE"):
+                currentState = publish_state_msg(msg1, 1) #set it to boot, 1 = boot
+            else:     
+                currentState = publish_state_msg(msg1, 2)  # 2 = disarmed
 
-    elif(requestedState == "ARMED"):
-        if (currentState == "DISARMED"):
-            modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
-            currentState = publish_state_msg(msg1, 3)
-            # sets current state to armed
-        else:
-            requestedState = currentState  # couldn't change state
+        elif(requestedState == "ARMED"):
+            if (currentState == "DISARMED"):
+                modrive.set_control_mode(legalAxis, CTRL_MODE_VELOCITY_CONTROL)
+                currentState = publish_state_msg(msg1, 3)
+                # sets current state to armed
+            else:
+                requestedState = currentState  # couldn't change state
 
-    elif(requestedState == "CALIBRATING"):
-        if (currentState == "DISARMED" or currentState == "ARMED" or
-                currentState == "BOOT"):
-            if legalAxis != "BOTH":
-                modrive.requested_state(legalAxis,
-                                    AXIS_STATE_FULL_CALIBRATION_SEQUENCE)
-                while (modrive.get_current_state(legalAxis) != AXIS_STATE_IDLE):
-                    t.sleep(0.1)
+        elif(requestedState == "CALIBRATING"):
+            if (currentState == "DISARMED" or currentState == "ARMED" or
+                    currentState == "BOOT"):
+                if legalAxis != "BOTH":
+                    modrive.requested_state(legalAxis,
+                                        AXIS_STATE_FULL_CALIBRATION_SEQUENCE)
+                    while (modrive.get_current_state(legalAxis) != AXIS_STATE_IDLE):
+                        t.sleep(0.1)
 
-            elif legalAxis == "BOTH":
-                modrive.requested_state("FRONT",
-                                    AXIS_STATE_FULL_CALIBRATION_SEQUENCE)
-                while (modrive.get_current_state("FRONT") != AXIS_STATE_IDLE):
-                    t.sleep(0.1)
-                modrive.requested_state("BACK",
-                                    AXIS_STATE_FULL_CALIBRATION_SEQUENCE)
-                while(modrive.get_current_state("BACK") != AXIS_STATE_IDLE):
-                    t.sleep(0.1)
-            currentState = publish_state_msg(msg1, 5)
-        else:
-            requestedState = currentState  # was not able to change states
+                elif legalAxis == "BOTH":
+                    modrive.requested_state("FRONT",
+                                        AXIS_STATE_FULL_CALIBRATION_SEQUENCE)
+                    while (modrive.get_current_state("FRONT") != AXIS_STATE_IDLE):
+                        t.sleep(0.1)
+                    modrive.requested_state("BACK",
+                                        AXIS_STATE_FULL_CALIBRATION_SEQUENCE)
+                    while(modrive.get_current_state("BACK") != AXIS_STATE_IDLE):
+                        t.sleep(0.1)
+                currentState = publish_state_msg(msg1, 5)
+            else:
+                requestedState = currentState  # was not able to change states
 
-    elif(requestedState == "ERROR"):  # Never go here
-        currentState = publish_state_msg(msg1, 4)
+        elif(requestedState == "ERROR"):  # Never go here
+            currentState = publish_state_msg(msg1, 4)
 
+        elif(requestedState == "NONE"):
+            currentState = publish_state_msg(msg1, 7)
+
+    except AttributeError:
+        print("odrive disconnected")
+        currentState = publish_state_msg(msg1, 7)
     return currentState
 
 
@@ -333,25 +339,28 @@ def drivevelcmd_callback(channel, msg):
     global modrive
     global legalAxis
     message = DriveVelCmd.decode(msg)
-    if(currentState == "ARMED"):
-        if (legalController == 0):
-            if (message.axis == 0):
-                    modrive.requested_state(legalAxis,
-                                            AXIS_STATE_CLOSED_LOOP_CONTROL)
-                    modrive.set_vel("FRONT", message.vel)
-            if (message.axis == 2):
-                    modrive.requested_state(legalAxis,
-                                            AXIS_STATE_CLOSED_LOOP_CONTROL)
-                    modrive.set_vel("BACK", message.vel)
-        if (legalController == 1):
-            if (message.axis == 1):
-                    modrive.requested_state(legalAxis,
-                                            AXIS_STATE_CLOSED_LOOP_CONTROL)
-                    modrive.set_vel("FRONT", message.vel)
-            if (message.axis == 3):
-                    modrive.requested_state(legalAxis,
-                                            AXIS_STATE_CLOSED_LOOP_CONTROL)
-                    modrive.set_vel("BACK", message.vel)
+    try:
+        if(currentState == "ARMED"):
+            if (legalController == 0):
+                if (message.axis == 0):
+                        modrive.requested_state(legalAxis,
+                                                AXIS_STATE_CLOSED_LOOP_CONTROL)
+                        modrive.set_vel("FRONT", message.vel)
+                if (message.axis == 2):
+                        modrive.requested_state(legalAxis,
+                                                AXIS_STATE_CLOSED_LOOP_CONTROL)
+                        modrive.set_vel("BACK", message.vel)
+            if (legalController == 1):
+                if (message.axis == 1):
+                        modrive.requested_state(legalAxis,
+                                                AXIS_STATE_CLOSED_LOOP_CONTROL)
+                        modrive.set_vel("FRONT", message.vel)
+                if (message.axis == 3):
+                        modrive.requested_state(legalAxis,
+                                                AXIS_STATE_CLOSED_LOOP_CONTROL)
+                        modrive.set_vel("BACK", message.vel)
+    except AttributeError:
+        print("odrive disconnected")
 
     lock.release()
 
