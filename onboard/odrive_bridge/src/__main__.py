@@ -124,7 +124,7 @@ def nextState(currentState):
         print("looking for odrive")
 
         if sys.argv[1] == "0":
-            id = "334F314C3536"
+            id = "2091358E524B"
         if sys.argv[1] == "1":
             id = "Put back odrive id here"
         print(id)
@@ -133,6 +133,12 @@ def nextState(currentState):
         print("found odrive")
         modrive = Modrive(odrive)  # arguments = odr
         encoderTime = t.time()
+        #reset odrive 
+        if(legalAxis != "BOTH"):
+            modrive.reset(legalAxis)
+        else:
+            modrive.reset("FRONT")
+            modrive.reset("BACK")
         # Block until odrive is connected
         # set current limit on odrive to 100
         modrive.set_current_lim(legalAxis, 100)
@@ -249,15 +255,10 @@ def change_state(currentState):
     elif(requestedState == "CALIBRATING"):
         if (currentState == "DISARMED" or currentState == "ARMED" or
                 currentState == "BOOT"):
-            if legalAxis == "FRONT":
+            if legalAxis != "BOTH":
                 modrive.requested_state(legalAxis,
                                     AXIS_STATE_FULL_CALIBRATION_SEQUENCE)
-                while (modrive.get_current_state("FRONT") != AXIS_STATE_IDLE):
-                    t.sleep(0.1)
-            elif legalAxis == "BACK":
-                modrive.requested_state(legalAxis,
-                                    AXIS_STATE_FULL_CALIBRATION_SEQUENCE)
-                while (modrive.get_current_state("BACK") != AXIS_STATE_IDLE):
+                while (modrive.get_current_state(legalAxis) != AXIS_STATE_IDLE):
                     t.sleep(0.1)
 
             elif legalAxis == "BOTH":
@@ -451,6 +452,24 @@ class Modrive:
         else:
             print("cant get current state of both axes at once")
             return 0
+    def reset(self, axis):
+        m_axis = self.front_axis
+        if (axis == "BACK"):
+            m_axis = self.back_axis
+        m_axis.motor.config.pole_pairs = 15
+        m_axis.motor.config.resistance_calib_max_voltage = 4
+        m_axis.motor.config.requested_current_range = 25 #Requires config save and reboot
+        m_axis.motor.config.current_control_bandwidth = 100
+
+        m_axis.encoder.config.mode = ENCODER_MODE_HALL
+        m_axis.encoder.config.cpr = 90
+
+        m_axis.encoder.config.bandwidth = 100
+        m_axis.controller.config.pos_gain = 1
+        m_axis.controller.config.vel_gain = 0.02
+        m_axis.controller.config.vel_integrator_gain = 0.1
+        m_axis.controller.config.vel_limit = 1000
+        m_axis.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
 
     def check_errors(self, axis):
         front = self.front_axis.error
