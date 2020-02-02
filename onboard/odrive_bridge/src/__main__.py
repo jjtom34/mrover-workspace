@@ -77,17 +77,10 @@ def publish_state_msg(msg, state_number):
 def publish_encoder_helper(msg, axis):
     msg.measuredCurrent = modrive.get_iq_measured(axis)
     msg.estimatedVel = modrive.get_vel_estimate(axis)
+    motor_map = {["BACK", 0] : 2, ["BACK", 1] : 3, 
+                     ["FRONT", 0] : 0, ["FRONT", 1] : 1 }
+    msg.axis = motor_map[[axis, legalController]]
 
-    if (axis == "BACK"):
-        if (legalController == 0):
-            msg.axis = 2
-        if (legalController == 1):
-            msg.axis = 3
-    elif (axis == "FRONT"):
-        if (legalController == 0):
-            msg.axis = 0
-        if (legalController == 1):
-            msg.axis = 1
     lcm_.publish("/driveveldata", msg.encode())
 
 
@@ -102,6 +95,49 @@ def publish_encoder_msg(msg):
     elif (legalAxis == "FRONT"):
         publish_encoder_helper(msg, "FRONT")
         return t.time()
+
+class State(object):
+     def __init__(self):
+         print("processing current state:", str(self))
+     
+     def on_event(self, event):
+         pass
+
+     def __repr__(self):
+         return self.__str__()
+    
+     def __str__(self):
+         return self.__class__.__name__
+
+class Idle(State);
+    on_event(self, event);
+        if(event == "BOOT"):
+            print("looking for odrive")
+
+            odrive = odv.find_any()
+            t.sleep(3)
+            print("found odrive", hex(odrive.serial_number)
+
+            modrive = Modrive(odrive)  # arguments = odr
+            encoderTime = t.time()
+
+            modrive.set_current_lim(legalAxis, 100)
+            # set controller's control mode to velocity control
+            modrive.set_control_mode(legalAxis, "velocity")
+
+            print(__str__())
+
+            publish_state_msg(msg1, 2) #sets state to disarmed 
+            
+            return Disarmed()
+            
+             
+
+class Boot(State):
+    on_event(self, event):
+        if (event == "DISARMED"):
+             
+
 
 
 def nextState(currentState):
@@ -184,6 +220,7 @@ def nextState(currentState):
 
         elif (currentState == "ERROR"):
             # sets current state to calibrating
+            print(modrive.dump_errors())
             requestedState = publish_state_msg(msg1, 1)
         elif (currentState == "CALIBRATING"):
             # if odrive is done calibrating
@@ -342,13 +379,11 @@ def drivevelcmd_callback(channel, msg):
     try:
         if(currentState == "ARMED"):
             if (legalController == 0):
+                modrive.requested_state(legalAxis,
+                                           AXIS_STATE_CLOSED_LOOP_CONTROL)
                 if (message.axis == 0):
-                        modrive.requested_state(legalAxis,
-                                                AXIS_STATE_CLOSED_LOOP_CONTROL)
                         modrive.set_vel("FRONT", message.vel)
-                if (message.axis == 2):
-                        modrive.requested_state(legalAxis,
-                                                AXIS_STATE_CLOSED_LOOP_CONTROL)
+                else if (message.axis == 2):
                         modrive.set_vel("BACK", message.vel)
             if (legalController == 1):
                 if (message.axis == 1):
@@ -397,7 +432,9 @@ class Modrive:
 
     # odrive.axis0.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
 
-    def set_control_mode(self, axis, mode):
+    def set_control_mode(self, axis, m):
+        modes = {"velocity" : CTRL_MODE_VELOCITY_CONTROL}
+        mode = modes[m]
         if (axis == "FRONT"):
             self.front_axis.controller.config.control_mode = mode
         elif (axis == "BACK"):
@@ -479,6 +516,7 @@ class Modrive:
         m_axis.controller.config.vel_integrator_gain = 0.1
         m_axis.controller.config.vel_limit = 1000
         m_axis.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
+        m_axis.save_configuration() #saves it for between power cycles 
 
     def check_errors(self, axis):
         front = self.front_axis.error
