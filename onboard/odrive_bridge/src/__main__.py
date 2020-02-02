@@ -127,7 +127,7 @@ def nextState(currentState):
             if sys.argv[1] == "0":
                 id = "2091358E524B"
             if sys.argv[1] == "1":
-                id = "Put back odrive id here"
+                id = "20563591524B"
             print(id)
             odrive = odv.find_any(serial_number=id)
             t.sleep(3)
