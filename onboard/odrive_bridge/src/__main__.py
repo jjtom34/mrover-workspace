@@ -93,46 +93,46 @@ def publish_encoder_msg(msg):
         publish_encoder_helper(msg, legalAxis)
     return t.time()
 
-class State(object):
-     def __init__(self):
-         print("processing current state:", str(self))
+# class State(object):
+#      def __init__(self):
+#          print("processing current state:", str(self))
      
-     def on_event(self, event):
-         pass
+#      def on_event(self, event):
+#          pass
 
-     def __repr__(self):
-         return self.__str__()
+#      def __repr__(self):
+#          return self.__str__()
     
-     def __str__(self):
-         return self.__class__.__name__
+#      def __str__(self):
+#          return self.__class__.__name__
 
-class Idle(State);
-    on_event(self, event);
-        if(event == "BOOT"):
-            print("looking for odrive")
+# class Idle(State);
+#     on_event(self, event);
+#         if(event == "BOOT"):
+#             print("looking for odrive")
 
-            odrive = odv.find_any()
-            t.sleep(3)
-            print("found odrive", hex(odrive.serial_number)
+#             odrive = odv.find_any()
+#             t.sleep(3)
+#             print("found odrive", hex(odrive.serial_number)
 
-            modrive = Modrive(odrive)  # arguments = odr
-            encoderTime = t.time()
+#             modrive = Modrive(odrive)  # arguments = odr
+#             encoderTime = t.time()
 
-            modrive.set_current_lim(legalAxis, 100)
-            # set controller's control mode to velocity control
-            modrive.set_control_mode(legalAxis, "velocity")
+#             modrive.set_current_lim(legalAxis, 100)
+#             # set controller's control mode to velocity control
+#             modrive.set_control_mode(legalAxis, "velocity")
 
-            print(__str__())
+#             print(__str__())
 
-            publish_state_msg(msg1, 2) #sets state to disarmed 
+#             publish_state_msg(msg1, 2) #sets state to disarmed 
             
-            return Disarmed()
+#             return Disarmed()
             
              
 
-class Boot(State):
-    on_event(self, event):
-        if (event == "DISARMED"):
+# class Boot(State):
+#     on_event(self, event):
+#         if (event == "DISARMED"):
              
 
 
@@ -176,7 +176,9 @@ def nextState(currentState):
             modrive = Modrive(odrive)  # arguments = odr
             modrive.reset(legalAxis)
             modrive.set_current_lim(legalAxis, 100)
-            modrive.set_velocity_control(legalAxis)
+            
+            modrive.set_velocity_ctrl(legalAxis)
+            print("modrive set vel")
             print(currentState)
 
             requestedState = publish_state_msg(msg1, "DISARMED") #sets current state to disarmed
@@ -478,7 +480,6 @@ class Modrive:
         m_axis.controller.config.vel_integrator_gain = 0.1
         m_axis.controller.config.vel_limit = 1000
         m_axis.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
-        m_axis.save_configuration() #saves it for between power cycles 
 
 
     def reset(self, axis):
@@ -491,7 +492,7 @@ class Modrive:
             else:
                 self._reset(self.back_axis)
         self.odrive.save_configuration()
-        odv.dump_errors(odrive, True) #clears errors from last reboot
+        #odv.dump_errors(odrive, True) #clears errors from last reboot
 
 
     def check_errors(self, axis):
