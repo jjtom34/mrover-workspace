@@ -43,9 +43,9 @@ def main():
     threading._start_new_thread(lcmThreaderMan, ())
 
     while True:
-        print(currentState)
+        # print(currentState)
         currentState = nextState(currentState)
-        t.sleep(1)
+        # t.sleep(1)
 
     exit()
 
@@ -57,7 +57,7 @@ def lcmThreaderMan():
     lcm_1.subscribe("/drive_vel_cmd", drivevelcmd_callback)
     while True:
         lcm_1.handle()
-        t.sleep(1)
+        # t.sleep(1)
 
 
 states = ["BOOT", "DISARMED", "ARMED", "ERROR", "CALIBRATING"]
@@ -71,7 +71,7 @@ def publish_state_msg(msg, state):
     msg.state = states.index(state)
     msg.controller = int(sys.argv[1])
     lcm_.publish("/drive_state_data", msg.encode())
-    print("changed state to " + state)
+    # print("changed state to " + state)
     return state
 
 
@@ -107,7 +107,7 @@ def nextState(currentState):
     global modrive
     global msg
     global msg1
-    print("Requested State: " + requestedState)
+    # print("Requested State: " + requestedState)
     print("Current State: " + currentState)
 
     if (currentState != requestedState):
