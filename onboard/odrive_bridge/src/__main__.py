@@ -12,10 +12,19 @@ from odrive.enums import AXIS_STATE_CLOSED_LOOP_CONTROL, \
     CTRL_MODE_VELOCITY_CONTROL, AXIS_STATE_FULL_CALIBRATION_SEQUENCE, \
     AXIS_STATE_IDLE, ENCODER_MODE_HALL
 
+global leftSpeed
+global rightSpeed
+
 
 def main():
     global lcm_
     lcm_ = lcm.LCM()
+
+    global leftSpeed
+    global rightSpeed
+
+    leftSpeed = 0.0
+    rightSpeed = 0.0
 
     global modrive
     global legalController
@@ -31,7 +40,9 @@ def main():
     msg1 = DriveStateData()
 
     global lock
+    global speedLock
     lock = threading.Lock()
+    speedLock = threading.Lock()
 
     global currentState
     currentState = "NONE"  # starting state
@@ -96,6 +107,7 @@ def publish_encoder_msg(msg):
 
 def nextState(currentState):
     global lock
+    global speedLock
     lock.acquire()
     # every time the state changes,
     # publish an odrive_state lcm message, with the new state
@@ -107,8 +119,10 @@ def nextState(currentState):
     global modrive
     global msg
     global msg1
+    global leftSpeed
+    global rightSpeed
     # print("Requested State: " + requestedState)
-    print("Current State: " + currentState)
+    # print("Current State: " + currentState)
 
     if (currentState != requestedState):
         currentState = change_state(currentState)
@@ -125,7 +139,7 @@ def nextState(currentState):
         print(id)
 
         odrive = odv.find_any(serial_number=id)
-        t.sleep(3)
+        # t.sleep(3)
         print("found odrive")
 
         modrive = Modrive(odrive)  # arguments = odr
@@ -139,7 +153,7 @@ def nextState(currentState):
 
     elif (currentState == "DISARMED"):
         if (t.time() - encoderTime > 0.1):
-            print("Sent Encoder Message")
+            # print("Sent Encoder Message")
             encoderTime = t.time()
             publish_encoder_msg(msg)
         modrive.closed_loop_ctrl()
@@ -154,8 +168,12 @@ def nextState(currentState):
         modrive.idle()  # sets odrive state to idle
 
     elif (currentState == "ARMED"):
+        speedLock.acquire()
+        modrive.set_vel("LEFT", leftSpeed)
+        modrive.set_vel("RIGHT", rightSpeed)
+        speedLock.release()
         if (encoderTime - t.time() > 0.1):
-            print("Sent Encoder Message")
+            # print("Sent Encoder Message")
             encoderTime = publish_encoder_msg(msg)
 
     elif (currentState == "ERROR"):
@@ -216,6 +234,8 @@ def change_state(currentState):
 
         elif(requestedState == "ARMED"):
             if (currentState == "DISARMED"):
+                modrive.closed_loop_ctrl()
+                # Calibration sets this to idle we need this to set vel to 0
                 modrive.set_velocity_ctrl()
                 currentState = publish_state_msg(msg1, "ARMED")
                 # sets current state to armed
@@ -257,18 +277,15 @@ def drivevelcmd_callback(channel, msg):
     # if the program is in an ARMED state
     # set the odrive's velocity to the float specified in the message
     # no state changechange
-    lock.acquire()
-    global currentState
-    global modrive
-    global legalAxis
+    global speedLock
+    global leftSpeed
+    global rightSpeed
 
+    speedLock.acquire()
     message = DriveVelCmd.decode(msg)
-    if(currentState == "ARMED"):
-        modrive.closed_loop_ctrl()
-        modrive.set_vel("LEFT", message.left)
-        modrive.set_vel("RIGHT", message.right)
-
-    lock.release()
+    leftSpeed = message.left
+    rightSpeed = message.right
+    speedLock.release()
 
 
 if __name__ == "__main__":
@@ -326,10 +343,13 @@ class Modrive:
     def calibrate(self):
         modrive._requested_state("LEFT", AXIS_STATE_FULL_CALIBRATION_SEQUENCE)
         while (modrive.get_current_state()[0] != AXIS_STATE_IDLE):
-            t.sleep(0.1)
+            # t.sleep(0.1)
+            pass
         modrive._requested_state("RIGHT", AXIS_STATE_FULL_CALIBRATION_SEQUENCE)
         while (modrive.get_current_state()[1] != AXIS_STATE_IDLE):
-            t.sleep(0.1)
+            # t.sleep(0.1)
+            pass
+        print('Calibrated')
 
     def idle(self):
         self._requested_state("BOTH", AXIS_STATE_IDLE)
