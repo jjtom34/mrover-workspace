@@ -378,10 +378,11 @@ class Modrive:
 
     def get_vel_estimate(self, axis):
         # axis = self.odrive[axis_number]
+        # Now Returns in Turns instead of count so we multiply by cpr to get count
         if (axis == "LEFT"):
-            return self.front_axis.encoder.vel_estimate
+            return self.front_axis.encoder.vel_estimate * self.front_axis.encoder.config.cpr
         elif(axis == "RIGHT"):
-            return self.back_axis.encoder.vel_estimate
+            return self.back_axis.encoder.vel_estimate * self.back_axis.encoder.config.cpr
 
     def idle(self):
         self._requested_state(AXIS_STATE_IDLE)
@@ -394,10 +395,11 @@ class Modrive:
         self.front_axis.requested_state = state
 
     def set_vel(self, axis, vel):
+        # Converted From Turns to Count by dividing by encoder cpr
         if (axis == "LEFT"):
-            self.front_axis.controller.vel_setpoint = vel * 205
+            self.front_axis.controller.input_vel = vel * 205 / self.front_axis.encoder.config.cpr
         elif axis == "RIGHT":
-            self.back_axis.controller.vel_setpoint = vel * -205
+            self.back_axis.controller.input_vel = vel * -205 / self.back_axis.encoder.config.cpr
 
     def get_current_state(self):
         return (self.front_axis.current_state, self.back_axis.current_state)
