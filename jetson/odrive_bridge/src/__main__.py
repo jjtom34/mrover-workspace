@@ -4,11 +4,11 @@ import time as t
 import odrive as odv
 import threading
 import fibre
-from rover_msgs import DriveStateCmd, DriveVelCmd, \
+from rover_msgs import DriveVelCmd, \
     DriveStateData, DriveVelData
 from odrive.enums import AXIS_STATE_CLOSED_LOOP_CONTROL, \
-    CTRL_MODE_VELOCITY_CONTROL, AXIS_STATE_FULL_CALIBRATION_SEQUENCE, \
-    AXIS_STATE_IDLE, ENCODER_MODE_HALL
+    CONTROL_MODE_VELOCITY_CONTROL, \
+    AXIS_STATE_IDLE
 
 from odrive.utils import dump_errors
 
@@ -367,7 +367,7 @@ class Modrive:
         self.back_axis.controller.config.control_mode = mode
 
     def set_velocity_ctrl(self):
-        self._set_control_mode(CTRL_MODE_VELOCITY_CONTROL)
+        self._set_control_mode(CONTROL_MODE_VELOCITY_CONTROL)
 
     def get_iq_measured(self, axis):
         # measured current [Amps]
